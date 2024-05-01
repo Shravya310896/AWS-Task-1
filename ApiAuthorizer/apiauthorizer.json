@@ -1,0 +1,213 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "API Authorizer Stack",
+  "Metadata": {
+    "AWS::CloudFormation::Interface": {
+      "ParameterGroups": [
+        {
+          "Label": {
+            "default": "Project Info"
+          },
+          "Parameters": [
+            "environmentCode",
+            "projectCode",
+            "serviceCode"
+          ]
+        }
+      ]
+    }
+  },
+  "Parameters": {
+    "apiStackName": {
+      "Description": "The API Stack Name",
+      "Type": "String"
+    },
+    "lambdaFunctionHandler": {
+      "Description": "The Lambda Function Handler",
+      "Type": "String"
+    },
+    "lambdaFunctionMemorySize": {
+      "Description": "The Lambda Function Memory Size in MB",
+      "Type": "String"
+    },
+    "lambdaFunctionTimeout": {
+      "Description": "The Lambda Function Timeout in Seconds",
+      "Type": "String"
+    },
+    "s3CodeDeployBucket": {
+      "Description": "The name of the S3 bucket containing the Lambda sample code",
+      "Type": "String"
+    }
+  },
+  "Mappings": {},
+  "Resources": {
+    "LambdaRole": {
+      "Type": "AWS::IAM::Role",
+      "DependsOn": [],
+      "Properties": {
+        "RoleName": "apiauthorizerlambdaiamrole",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "lambda.amazonaws.com",
+                  "apigateway.amazonaws.com"
+                ]
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": []
+      }
+    },
+    "LambdaRolePolicy": {
+      "Type": "AWS::IAM::Policy",
+      "DependsOn": "LambdaRole",
+      "Properties": {
+        "PolicyName": "LambdaVPCAccess",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+              ],
+              "Resource": "arn:aws:logs:*:*:*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "ec2:CreateNetworkInterface",
+                "ec2:DescribeNetworkInterfaces",
+                "ec2:DeleteNetworkInterface"
+              ],
+              "Resource": [
+                "*"
+              ]
+            }
+          ]
+        },
+        "Roles": [
+          {
+            "Ref": "LambdaRole"
+          }
+        ]
+      }
+    },
+    "LambdaS3Policy": {
+      "Type": "AWS::IAM::Policy",
+      "DependsOn": "LambdaRole",
+      "Properties": {
+        "PolicyName": "LambdaS3Access",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:*"
+              ],
+              "Resource": "*"
+            }
+          ]
+        },
+        "Roles": [
+          {
+            "Ref": "LambdaRole"
+          }
+        ]
+      }
+    },
+    "LambdaFunction1": {
+      "Type": "AWS::Lambda::Function",
+      "DependsOn": [
+        "LambdaRolePolicy"
+      ],
+      "Properties": {
+        "FunctionName": "apiauthorizer",
+        "Handler": {
+          "Ref": "lambdaFunctionHandler"
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaRole",
+            "Arn"
+          ]
+        },
+        "Code": {
+          "S3Bucket": "s3codedeploybucket-lambdacodebucket",
+          "S3Key": "ApiAuthorizerPythoncode.zip"
+        },
+        "Runtime": "python3.12",
+        "MemorySize": "1024",
+        "Timeout": "30",
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            "sg-05a2182e14de89ea1"
+          ],
+          "SubnetIds": [
+            "subnet-05390bb6cc1f61873",
+            "subnet-0af95431d8949ca0d"
+          ]
+        },
+        "Environment": {
+          "Variables": {
+            "regionkey": {
+              "Ref": "AWS::Region"
+            }
+          }
+        },
+        "TracingConfig": {
+          "Mode": "Active"
+        }
+      }
+    },
+    "LambdaPermissions": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "LambdaFunction1"
+        },
+        "Action": "lambda:InvokeFunction",
+        "SourceArn": {
+          "Fn::ImportValue": {
+            "Fn::Sub": "${apiStackName}-apiGatewayArn"
+          }
+        },
+        "Principal": "apigateway.amazonaws.com"
+      }
+    }
+  },
+  "Outputs": {
+    "lambdaArn": {
+      "Value": {
+        "Fn::GetAtt": [
+          "LambdaFunction1",
+          "Arn"
+        ]
+      },
+      "Export": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-lambdaArn"
+        }
+      }
+    },
+    "lambdaFunction1Name": {
+      "Value": {
+        "Ref": "LambdaFunction1"
+      },
+      "Export": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-LambdaName"
+        }
+      }
+    }
+  }
+}

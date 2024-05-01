@@ -1,0 +1,141 @@
+{
+    "Transform": "AWS::Serverless-2016-10-31",
+    "Globals": {
+        "Api": {
+            "OpenApiVersion": "2.0"
+        }
+    },
+    "Description": "APIGateway Stack",
+    "Metadata": {
+        "AWS::CloudFormation::Interface": {
+            "ParameterGroups": [
+                {
+                    "Label": {
+                        "default": "Project Info"
+                    },
+                    "Parameters": [
+                        "environmentCode",
+                        "projectCode",
+                        "serviceCode"
+                    ]
+                }
+            ]
+        }
+    },
+    "Parameters": {},
+    "Mappings": {},
+    "Conditions": {},
+    "Resources": {
+        "ApiGateway": {
+            "DependsOn": [
+                "ApiGatewayAccount"
+            ],
+            "Type": "AWS::Serverless::Api",
+            "Properties": {
+                "Name": "apigateway_hcl",
+                "DefinitionUri": {
+                    "Bucket": "s3codedeploybucket-lambdacodebucket",
+                    "Key": "sample-apiswagger.json"
+                },
+                "EndpointConfiguration": "REGIONAL",
+                "StageName": "v1",
+                "TracingEnabled": true,
+                "MethodSettings": [
+                    {
+                        "ResourcePath": "/*",
+                        "HttpMethod": "*",
+                        "MetricsEnabled": true,
+                        "DataTraceEnabled": true,
+                        "LoggingLevel": "INFO"
+                    }
+                ]
+            }
+        },
+        "ApiGatewayCloudWatchLogsRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName": "apigateway_cloudwatchlogsrole",
+                "ManagedPolicyArns": [
+                    "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+                ],
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "apigateway.amazonaws.com"
+                            },
+                            "Action": "sts:AssumeRole"
+                        }
+                    ]
+                }
+            }
+        },
+        "ApiGatewayAccount": {
+            "DependsOn": [
+                "ApiGatewayCloudWatchLogsRole"
+            ],
+            "Type": "AWS::ApiGateway::Account",
+            "Properties": {
+                "CloudWatchRoleArn": {
+                    "Fn::GetAtt": [
+                        "ApiGatewayCloudWatchLogsRole",
+                        "Arn"
+                    ]
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "apiGateway": {
+            "Value": {
+                "Fn::Join": [
+                    "",
+                    [
+                        "arn:aws:execute-api:",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                            "Ref": "AWS::AccountId"
+                        },
+                        ":",
+                        {
+                            "Ref": "ApiGateway"
+                        },
+                        "/*"
+                    ]
+                ]
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-apiGatewayArn"
+                }
+            }
+        },
+        "apiGatewayURL": {
+            "Value": {
+                "Fn::Join": [
+                    "",
+                    [
+                        {
+                            "Ref": "ApiGateway"
+                        },
+                        ".execute-api.",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        ".amazonaws.com"
+                    ]
+                ]
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-apiGatewayURL"
+                }
+            }
+        }
+    }
+}
