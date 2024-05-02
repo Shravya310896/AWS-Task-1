@@ -186,6 +186,16 @@
         "DisplayName": "SNSNewTopic"
       }
     },
+    "EmailSubscription": {
+      "Type": "AWS::SNS::Subscription",
+      "Properties": {
+        "Protocol": "email",
+        "Endpoint": "shravya310896896@gmail.com",
+        "TopicArn": {
+          "Ref": "SNSTopic"
+        }
+      }
+    },
     "LambdaSNSPolicy": {
       "Type": "AWS::IAM::Policy",
       "DependsOn": "LambdaRole",
